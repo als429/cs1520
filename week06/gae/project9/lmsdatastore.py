@@ -1,22 +1,27 @@
 from google.cloud import datastore
 
-import lmsdata
+import lmsdata # the classes we defined
 
-
-_USER_ENTITY = 'LmsUser'
+# these entity name values are defined within our index.yaml file as "kind"
+# kind is they type of entity that for the query 
+# definition here: https://cloud.google.com/appengine/docs/flexible/go/configuring-datastore-indexes-with-index-yaml
+_USER_ENTITY = 'LmsUser' 
 _COURSE_ENTITY = 'LmsCourse'
 _LESSON_ENTITY = 'LmsLesson'
 
 
 def _get_client():
     """Build a datastore client."""
+    # documentation on datastore: https://googleapis.dev/python/datastore/latest/client.html
+    # definition: Convenience wrapper for invoking APIs/factories w/ a project.
 
     return datastore.Client()
 
 
 def log(msg):
     """Log a simple message."""
-
+    # logging information to Log Viewer
+    # here: https://console.cloud.google.com/logs/viewer?resource=gae_app&_ga=2.13944496.640558531.1583523379-933297884.1578420671
     print('lmsdatastore: %s' % msg)
 
 
@@ -27,21 +32,25 @@ def _load_key(client, entity_type, entity_id=None, parent_key=None):
 
     key = None
     if entity_id:
+        # client.key is a proxy to google.cloud.datastore.key.Key
+        # documentation here: https://googleapis.dev/python/datastore/latest/keys.html#google.cloud.datastore.key.Key
         key = client.key(entity_type, entity_id, parent=parent_key)
     else:
         # this will generate an ID
         key = client.key(entity_type)
-    return key
+    return key # this is an int
 
 
 def _load_entity(client, entity_type, entity_id, parent_key=None):
     """Load a datstore entity using a particular client, and the ID."""
 
-    key = _load_key(client, entity_type, entity_id, parent_key)
+    key = _load_key(client, entity_type, entity_id, parent_key) # getting our int key here
     entity = client.get(key)
     log('retrieved entity for ' + str(entity_id))
-    return entity
-
+    return entity # this is an Entity object (google.cloud.datastore.entity.Entity) or NoneType
+    # documentation here: https://googleapis.dev/python/datastore/latest/entities.html
+    # You can the set values on the entity just like you would on any other dictionary. (e.g., lesson_entity['title'] = 'blah')
+    # Note: Lesson object's title is defined in lmsdata.py (but not our index.yaml)
 
 def _course_from_entity(course_entity):
     """Translate the Course entity to a regular old Python object."""
@@ -58,13 +67,13 @@ def _lesson_from_entity(lesson_entity, include_content=True):
     """Translate the Lesson entity to a regular old Python object."""
 
     lesson_id = lesson_entity.key.id
-    title = lesson_entity['title']
+    title = lesson_entity['title'] # You can the set values on the entity just like you would on any other dictionary.
     content = ''
     if include_content:
         content = lesson_entity['content']
-    lesson = lmsdata.Lesson(lesson_id, title, content)
-    log('built object from lesson entity: ' + str(title))
-    return lesson
+    lesson = lmsdata.Lesson(lesson_id, title, content) # where our classes from lmsdata.py come into play
+    log('built object from lesson entity: ' + str(title)) # logging to log viewer
+    return lesson # spits out a Python Lesson object
 
 
 def load_course(course_code):
@@ -86,12 +95,19 @@ def load_courses():
     """Load all of the courses."""
 
     client = _get_client()
+    
+    # .query() = Proxy to google.cloud.datastore.query.Query
+    # definition: A Query against the Cloud Datastore.
+    # query documentation: https://googleapis.dev/python/datastore/latest/queries.html
     q = client.query(kind=_COURSE_ENTITY)
+    
+    # minus sign before = descending order
+    # Prepend - to a field name to sort it in descending order
     q.order = ['-name']
     result = []
-    for course in q.fetch():
+    for course in q.fetch(): # q.fetch = Returns the iterator for the query.
         result.append(course)
-    return result
+    return result # list of all of the elements within the _COURSE_ENTITY query within the datastore
 
 
 def load_lesson(course_code, lesson_id):
@@ -99,9 +115,9 @@ def load_lesson(course_code, lesson_id):
 
     log('loading lesson detail: ' + str(course_code) + ' / ' + str(lesson_id))
     client = _get_client()
-    parent_key = _load_key(client, _COURSE_ENTITY, course_code)
-    lesson_entity = _load_entity(client, _LESSON_ENTITY, lesson_id, parent_key)
-    return _lesson_from_entity(lesson_entity)
+    parent_key = _load_key(client, _COURSE_ENTITY, course_code) # returns int
+    lesson_entity = _load_entity(client, _LESSON_ENTITY, lesson_id, parent_key) # loads the entity from the datastore
+    return _lesson_from_entity(lesson_entity) # method translates to python object, so lesson_entity becomes a Lesson object
 
 
 def load_user(username, passwordhash):
@@ -182,7 +198,7 @@ def save_completion(username, coursecode, lessonid):
         user_entity['completions'].append(lesson_key)
     client.put(user_entity)
 
-
+###### Testing #########
 def create_data():
     """You can use this function to populate the datastore with some basic
     data."""
