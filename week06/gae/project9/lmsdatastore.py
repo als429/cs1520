@@ -52,21 +52,21 @@ def _load_entity(client, entity_type, entity_id, parent_key=None):
     # You can the set values on the entity just like you would on any other dictionary. (e.g., lesson_entity['title'] = 'blah')
     # Note: Lesson object's title is defined in lmsdata.py (but not our index.yaml)
 
-def _course_from_entity(course_entity):
+def _course_from_entity(course_entity): # input: Entity
     """Translate the Course entity to a regular old Python object."""
 
-    code = course_entity.key.name
-    name = course_entity['name']
+    code = course_entity.key.name # this is a string version of the key
+    name = course_entity['name'] # acessing Entity as a dictionary element to pull out name value (for us to use within our object)
     desc = course_entity['description']
-    course = lmsdata.Course(code, name, desc, [])
+    course = lmsdata.Course(code, name, desc, []) # creating our object, the [] will be for lessons 
     log('built object from course entity: ' + str(code))
-    return course
+    return course # output: python Course object
 
 
 def _lesson_from_entity(lesson_entity, include_content=True):
     """Translate the Lesson entity to a regular old Python object."""
 
-    lesson_id = lesson_entity.key.id
+    lesson_id = lesson_entity.key.id # this is an int version of the key
     title = lesson_entity['title'] # You can the set values on the entity just like you would on any other dictionary.
     content = ''
     if include_content:
@@ -76,19 +76,19 @@ def _lesson_from_entity(lesson_entity, include_content=True):
     return lesson # spits out a Python Lesson object
 
 
-def load_course(course_code):
+def load_course(course_code): # inputing the course code to get information from datastore
     """Load a course from the datastore, based on the course code."""
 
     log('loading course: ' + str(course_code))
-    client = _get_client()
-    course_entity = _load_entity(client, _COURSE_ENTITY, course_code)
+    client = _get_client() # gets you a datastore client
+    course_entity = _load_entity(client, _COURSE_ENTITY, course_code) # loads the Entity from the datastore
     log('loaded course: ' + course_code)
-    course = _course_from_entity(course_entity)
-    query = client.query(kind=_LESSON_ENTITY, ancestor=course_entity.key)
-    for lesson in query.fetch():
-        course.add_lesson(_lesson_from_entity(lesson, False))
+    course = _course_from_entity(course_entity) # translated the Entity to a Course python object
+    query = client.query(kind=_LESSON_ENTITY, ancestor=course_entity.key) # preps a query that's going to look at Lesson Entity types
+    for lesson in query.fetch(): # gets us the Lesson information from datastore
+        course.add_lesson(_lesson_from_entity(lesson, False)) # adds the Lessons to the course; making sure to translate lesson entities into Lesson python objects
     log('loaded lessons: ' + str(len(course.lessons)))
-    return course
+    return course # returns python Course object
 
 
 def load_courses():
@@ -120,17 +120,25 @@ def load_lesson(course_code, lesson_id):
     return _lesson_from_entity(lesson_entity) # method translates to python object, so lesson_entity becomes a Lesson object
 
 
-def load_user(username, passwordhash):
+def load_user(username, passwordhash): # note: index.yaml and our User object do not contain passwordhash (it's only in datastore)
     """Load a user based on the passwordhash; if the passwordhash doesn't match
     the username, then this should return None."""
 
-    client = _get_client()
-    q = client.query(kind=_USER_ENTITY)
-    q.add_filter('username', '=', username)
-    q.add_filter('passwordhash', '=', passwordhash)
-    for user in q.fetch():
-        return lmsdata.User(user['username'], user['email'], user['about'])
-    return None
+    client = _get_client() # get the datastore client
+    q = client.query(kind=_USER_ENTITY) # prep a query that looks at user entities
+    
+    # .add_filter('<property>', '<operator>', <value>)
+    # Filter the query based on a property name, operator and a value.
+    # Documentation: https://googleapis.dev/python/datastore/latest/queries.html#google.cloud.datastore.query.Query.add_filter
+    q.add_filter('username', '=', username) # must equal un 
+    q.add_filter('passwordhash', '=', passwordhash) # must equal pwhash
+    
+    for user in q.fetch(): # fetch the information on the user
+        # get the information from the datastore (accessing as one accesses a dictionary)
+        # use that information as a parameter to insert in our python User object
+        # return object
+        return lmsdata.User(user['username'], user['email'], user['about']) 
+    return None # if info doesn't exist return None
 
 
 def load_about_user(username):
@@ -148,10 +156,10 @@ def load_completions(username):
     """Load a dictionary of coursecode => lessonid => lesson name based on the
     lessons the user has marked complete."""
 
-    client = _get_client()
-    user_entity = _load_entity(client, _USER_ENTITY, username)
-    courses = dict()
-    for completion in user_entity['completions']:
+    client = _get_client() # get a datastore client
+    user_entity = _load_entity(client, _USER_ENTITY, username) # load a user entity based on the username argument
+    courses = dict() # instantiate a dictionary
+    for completion in user_entity['completions']: #load in completed courses from datastore
         lesson_entity = client.get(completion)
         course_entity = client.get(completion.parent)
         code = course_entity.key.name
@@ -164,48 +172,55 @@ def load_completions(username):
 def save_user(user, passwordhash):
     """Save the user details to the datastore."""
 
-    client = _get_client()
-    entity = datastore.Entity(_load_key(client, _USER_ENTITY, user.username))
+    client = _get_client() # get datastore client
+    entity = datastore.Entity(_load_key(client, _USER_ENTITY, user.username)) # load information relating to the entity
     entity['username'] = user.username
     entity['email'] = user.email
-    entity['passwordhash'] = passwordhash
+    entity['passwordhash'] = passwordhash # this is only accessible within the datastore
     entity['about'] = ''
-    entity['completions'] = []
-    client.put(entity)
+    entity['completions'] = [] # these are only accessible within the datastore
+    client.put(entity) # update entity within datastore
 
 
 def save_about_user(username, about):
     """Save the user's about info to the datastore."""
 
-    client = _get_client()
-    user = _load_entity(client, _USER_ENTITY, username)
-    user['about'] = about
-    client.put(user)
+    client = _get_client() # get datastore client
+    user = _load_entity(client, _USER_ENTITY, username) # load information from users
+    user['about'] = about # input parameter about into user entity, accessing as one accesses a dictionary key
+    client.put(user) # save to datastore
 
 
 def save_completion(username, coursecode, lessonid):
     """Save a completion (i.e., mark a course as completed in the
     datastore)."""
 
-    client = _get_client()
-    course_key = _load_key(client, _COURSE_ENTITY, coursecode)
-    lesson_key = _load_key(client, _LESSON_ENTITY, lessonid, course_key)
-    user_entity = _load_entity(client, _USER_ENTITY, username)
-    completions = set()
-    for completion in user_entity['completions']:
-        completions.add(completion)
-    if lesson_key not in completions:
-        user_entity['completions'].append(lesson_key)
-    client.put(user_entity)
+    client = _get_client() # get a datastore client
+    course_key = _load_key(client, _COURSE_ENTITY, coursecode) # load key information about course
+    lesson_key = _load_key(client, _LESSON_ENTITY, lessonid, course_key) # load key information about lesson
+    user_entity = _load_entity(client, _USER_ENTITY, username) # load user entity information from datastore
+    completions = set() # instantiate a set data structure
+    for completion in user_entity['completions']: # access the datastore and pull down all completed courses
+        completions.add(completion) # add completion to the complesions set
+    if lesson_key not in completions: # if the lesson was not in competions
+        user_entity['completions'].append(lesson_key) # add the lesson key within the datastore
+    client.put(user_entity) # save the user entity
 
-###### Testing #########
+#######################################################################
+###### Testing, Updating info to see if python/datastore work #########
+#######################################################################
+
 def create_data():
     """You can use this function to populate the datastore with some basic
     data."""
 
-    client = _get_client()
+    client = _get_client() # get a datastore client
+    
+    ####### User
+    # create a test user 
     entity = datastore.Entity(client.key(_USER_ENTITY, 'testuser'),
                               exclude_from_indexes=[])
+    # update information
     entity.update({
         'username': 'testuser',
         'passwordhash': '',
@@ -213,10 +228,13 @@ def create_data():
         'about': '',
         'completions': [],
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore
 
+    ####### Course
+    # create a fake course as an entity, Course01
     entity = datastore.Entity(client.key(_COURSE_ENTITY, 'Course01'),
                               exclude_from_indexes=['description', 'code'])
+    # add information about Course01
     entity.update({
         'code': 'Course01',
         'name': 'First Course',
@@ -224,50 +242,69 @@ def create_data():
 future, real courses will have lots of other stuff here to see that will tell \
 you more about their content.',
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore 
+     
+    # create fake course as entity, Course02
     entity = datastore.Entity(client.key(_COURSE_ENTITY, 'Course02'),
                               exclude_from_indexes=['description', 'code'])
+    # update information
     entity.update({
         'code': 'Course02',
         'name': 'Second Course',
         'description': 'This is also a course description, but maybe less \
 wordy than the previous one.'
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore
+    
+    ####### Lessons  
+    ## Course01 - L1, create a lesson entity under Course
     entity = datastore.Entity(client.key(_COURSE_ENTITY,
                                          'Course01',
                                          _LESSON_ENTITY),
                               exclude_from_indexes=['content', 'title'])
+    
+    # update information about Lesson, as you would a dictionary
     entity.update({
         'title': 'Lesson 1: The First One',
         'content': 'Imagine there were lots of video content and cool things.',
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore
+    
+    ## Course01 - L2, create a lesson entity under Course
     entity = datastore.Entity(client.key(_COURSE_ENTITY,
                                          'Course01',
                                          _LESSON_ENTITY),
                               exclude_from_indexes=['content', 'title'])
+    # update information about Lesson, as you would a dictionary
     entity.update({
         'title': 'Lesson 2: Another One',
         'content': '1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11',
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore
+    
+    ## Course02 - L1, create a lesson entity under Course
     entity = datastore.Entity(client.key(_COURSE_ENTITY,
                                          'Course02',
                                          _LESSON_ENTITY),
                               exclude_from_indexes=['content', 'title'])
+    
+    # update information about Lesson, as you would a dictionary
     entity.update({
         'title': 'Lesson 1: The First One, a Second Time',
         'content': '<p>Things</p><p>Other Things</p><p>Still More Things</p>',
     })
 
-    client.put(entity)
+    client.put(entity) # save information to datastore
+    
+    ## Course02 - L2, create a lesson entity under Course
     entity = datastore.Entity(client.key(_COURSE_ENTITY,
                                          'Course02',
                                          _LESSON_ENTITY),
                               exclude_from_indexes=['content', 'title'])
+    
+    # update information about Lesson, as you would a dictionary
     entity.update({
         'title': 'Lesson 2: Yes, Another One',
         'content': '<ul><li>a</li><li>b</li><li>c</li><li>d</li><li></ul>',
     })
-    client.put(entity)
+    client.put(entity) # save information to datastore
